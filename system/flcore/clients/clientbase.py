@@ -65,7 +65,7 @@ class Client(object):
         entropy_client = self.calculate_data_entropy()
         return entropy_client
     
-    def send_local_model(self):
+    def send_local_model(self, round):
         self.is_malicious = False
         return self.model
     
@@ -160,7 +160,8 @@ class Client(object):
                 
                 ##############################################################################
                 loss = self.loss(output, y)
-                losses += loss.item() * y.shape[0]
+                #losses += loss.item() * y.shape[0]
+                losses += 0 * y.shape[0]
         
         fpr_micro_final = total_fp / (total_fp + total_tn) if (total_fp + total_tn) > 0 else 0
         frr_micro_final = total_fn / (total_fn + total_tp) if (total_fn + total_tp) > 0 else 0
@@ -193,7 +194,8 @@ class Client(object):
                 output = self.model(x)
                 loss = self.loss(output, y)
                 train_num += y.shape[0]
-                losses += loss.item() * y.shape[0]
+                #losses += loss.item() * y.shape[0]
+                losses += 0 * y.shape[0]
 
         # self.model.cpu()
         # self.save_model(self.model, 'model')

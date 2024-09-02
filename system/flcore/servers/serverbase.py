@@ -15,6 +15,7 @@ from utils.dlg import DLG
 
 from sklearn.cluster import SpectralClustering
 from flcore.cluster.cudacka import CudaCKA
+from flcore.cluster.cka import CKA
 from flcore.clients.clientmaliciousavg import ClientMaliciousAVG
 from flcore.clients.clientmaliciousala import ClientMaliciousALA
 
@@ -103,6 +104,9 @@ class Server(object):
 
         self.n_client_malicious = args.n_client_malicious
         self.quarantine = args.quarantine
+        self.round_init_atk = args.round_init_atk
+
+        self.sc = args.score_cluster
 
     def set_clients(self, clientObj):
         indexes = list(range(self.num_clients))
@@ -147,8 +151,8 @@ class Server(object):
 
     
 # ***********************************************************************************************************************************
-    def save_results_txt(self, acc, loss, frr, fpr):
-        self.n_clients_fake = self.n_client_malicious
+    def save_results_txt(self, acc=0, loss=0, frr=0, fpr=0, interrupt = False):
+        #self.n_clients_fake = self.n_client_malicious
         type_sel = self.type_select
         result_path = 'result2'
 
@@ -162,12 +166,18 @@ class Server(object):
             os.mkdir(sel_path)
 
         name_file = f"{self.dataset}_nclients{self.num_clients}_jr{self.join_ratio}_" + \
-                    f"remove{self.remove_cf}_ratecf{self.rate_client_fake}" + \
+                    f"remove{self.remove_cf}_nmalicious{self.n_client_malicious}" + \
                     f"_ncl{self.num_clusters}_atk_{self.atack}_srn_({self.srn_noise})" + \
-                    f"{self.algorithm}_quarantine{self.quarantine}.txt"
+                    f"{self.algorithm}_quarantine{self.quarantine}" + \
+                    f"init_{self.round_init_atk}_score_{self.sc}.txt"
         path_file = os.path.join(sel_path, name_file)
 
         #cria o arquivo txt caso não exista
+        if interrupt:
+            with open(path_file, "a") as arquivo:
+                arquivo.write('0, 0, 0, 0, 0, 0, 0\n')
+                return
+
         if (not os.path.exists(path_file)) or (self.times == 0) and (self.current_round == 0):
             with open(path_file, "w") as arquivo:
                 arquivo.write(f"acuracia,loss,frr,fpr, removed, n_clf, tp_removed\n{acc}, {loss}, {frr}, {fpr}, {self.n_removed},{self.n_clients_fake}, {self.n_tp_removed}\n")
@@ -354,12 +364,15 @@ class Server(object):
                                        columns = self.uploaded_ids,
                                        index= self.uploaded_ids)
         
-        return df_similaridade
+        if self.sc == 1:
+            return matriz_similaridade_cka
+        elif self.sc == 2:
+            df_similaridade.fillna(0., inplace = True)
+            return df_similaridade
 
     def calculate_cka(self):
         '''Realiza o calcula de similaridade'''
         clients_weights = []
-        self.calculate_cka2()
 
         for model in self.uploaded_models:
             weights = [param.data for param in model.parameters()]
@@ -381,7 +394,8 @@ class Server(object):
             # Preenche a matriz simétrica com os valores
             matriz_similaridade_cka[i, j] = similaridade_cka
             matriz_similaridade_cka[j, i] = similaridade_cka
-        
+            
+        matriz_similaridade_cka = np.nan_to_num(matriz_similaridade_cka)
         return matriz_similaridade_cka
     
     def set_clients_cluster(self):
@@ -398,8 +412,11 @@ class Server(object):
     
     def cluster_cka(self):
         '''Realiza a clusterização do cka'''
-        
-        matriz_similaridade_cka = self.calculate_cka2()
+
+        if self.sc == 1:
+            matriz_similaridade_cka = self.calculate_cka()
+        else:
+            matriz_similaridade_cka = self.calculate_cka2()
         
         cka_cluster = SpectralClustering(n_clusters = self.num_clusters, affinity='precomputed')
         self.labels = cka_cluster.fit_predict(matriz_similaridade_cka)
@@ -408,8 +425,13 @@ class Server(object):
             client.cluster = label
         
         self.set_clients_cluster()
-        #self.calculate_score_cluster(matriz_similaridade_cka)
-        self.calculate_score_cluster2(matriz_similaridade_cka)
+        
+        if self.sc == 1:
+            self.calculate_score_cluster(matriz_similaridade_cka)
+        elif self.sc == 2:
+            df_similaridade = pd.DataFrame(matriz_similaridade_cka)
+            self.calculate_score_cluster2(df_similaridade)
+
         #self.calculate_score_cluster3()
 
     def calculate_score_cluster3(self):
@@ -530,6 +552,7 @@ class Server(object):
         '''Calcula uma pontuação para cada cluster considerando a média de similaridade 
         entre os clientes do cluster'''
         self.score_cluster = {}
+        #matriz_similaridade = matriz_similaridade.values
         
         for cluster_label, clientes in self.clients_cluster.items():
             # Identifica os índices dos clientes neste cluster
@@ -658,7 +681,6 @@ class Server(object):
 
         self.selected_clients.remove(client)
 
-        assert (len(self.selected_clients) > 0)
         index_remove = self.uploaded_ids.index(client.id)
 
         self.uploaded_models.remove(self.uploaded_models[index_remove])
@@ -700,7 +722,7 @@ class Server(object):
                 tot_samples += client.train_samples
                 self.uploaded_ids.append(client.id)
                 self.uploaded_weights.append(client.train_samples)
-                self.uploaded_models.append(client.send_local_model())
+                self.uploaded_models.append(client.send_local_model(self.current_round))
                 #print(f"selected: {client.id}")
 
                 # dicionario para mapeadar pesos e modelos pelo id do cliente
@@ -739,6 +761,7 @@ class Server(object):
             server_param.data += client_param.data.clone() * w
 
     def aggregate_parameters(self):
+              
         assert (len(self.uploaded_models) > 0)
 
         self.global_model = copy.deepcopy(self.uploaded_models[0])

@@ -31,8 +31,11 @@ class ClientMaliciousAVG(clientAVG):
         self.list_global_model.append(model)
         return super().set_parameters(model)
     
-    def send_local_model(self):
+    def send_local_model(self, round):
 
+        if round <= self.round_init_atk:
+            return self.model
+        
         self.is_malicious = np.random.choice([False, True], 
                                      p = [1 - self.rate_client_fake, self.rate_client_fake])
         if self.is_malicious:

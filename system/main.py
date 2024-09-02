@@ -444,6 +444,7 @@ if __name__ == "__main__":
     parser.add_argument('-ria', '--round_init_atk', type = int, default=0)
     parser.add_argument('-ncm', '--n_client_malicious', type = int, default=0)
     parser.add_argument('-q', '--quarantine', type = int, default=0)
+    parser.add_argument('-sc', '--score_cluster', type = int, default=2)
 
     args = parser.parse_args()
 

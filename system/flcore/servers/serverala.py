@@ -54,8 +54,12 @@ class FedALA(Server):
                 if not self.cluster:
                     self.cluster_cka()
                 self.remove_client_fake() 
-            #########################################
 
+            if len(self.uploaded_weights) <= 0:
+                self.save_results_txt(interrupt=True)
+                break
+            #########################################
+            
             self.aggregate_parameters()
 
             self.Budget.append(time.time() - s_t)

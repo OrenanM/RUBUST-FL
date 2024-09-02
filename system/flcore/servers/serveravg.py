@@ -33,9 +33,6 @@ class FedAvg(Server):
                 print(f"\n-------------Round number: {i}-------------")
                 print("\nEvaluate global model")
                 self.evaluate()
-                self.n_tp_removed = 0
-                self.n_clients_fake = 0
-                self.n_removed = 0
             
             for client in self.selected_clients:
                 client.train()

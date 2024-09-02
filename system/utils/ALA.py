@@ -148,7 +148,7 @@ class ALA:
                 break
 
             # train the weight until convergence
-            if len(losses) > self.num_pre_loss and np.std(losses[-self.num_pre_loss:]) < self.threshold:
+            if (len(losses) > self.num_pre_loss and np.std(losses[-self.num_pre_loss:]) < self.threshold) or (cnt > 20):
                 print('Client:', self.cid, '\tStd:', np.std(losses[-self.num_pre_loss:]),
                     '\tALA epochs:', cnt)
                 break
